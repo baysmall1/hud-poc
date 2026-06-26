@@ -22,6 +22,7 @@ final class V21PayloadParser {
         boolean changed;
         boolean freshGuide;
         boolean authoritativeGuide;
+        String turnIconName = "";
     }
 
     Result apply(String payload, HudState state, boolean allowFallbackGuide) throws JSONException {
@@ -51,7 +52,7 @@ final class V21PayloadParser {
 
         boolean appGuide = function.contains("app_guide");
         if (appGuide || (allowFallbackGuide && (function.contains("turn") || function.contains("tbt")))) {
-            JSONObject turn = findObjectWith(root, "turnKind");
+            JSONObject turn = findObjectWithAny(root, "turnKind", "turnKindType", "arrowName", "turnIconName");
             if (turn != null) {
                 result.changed |= setString(turn, "roadName", state.currentRoad, v -> state.currentRoad = v);
                 result.changed |= setString(turn, "nextRoadName", state.nextRoad, v -> state.nextRoad = v);
@@ -61,10 +62,14 @@ final class V21PayloadParser {
                     state.direction = direction;
                     result.changed = true;
                 }
-                int turnKind = integer(turn, "turnKind", integer(turn, "maneuver", state.turnKind));
+                int turnKind = intAny(turn, state.turnKind, "turnKind", "maneuver", "turnKindType");
                 if (turnKind != state.turnKind) {
                     state.turnKind = turnKind;
                     result.changed = true;
+                }
+                String iconName = firstNonEmptyString(turn, "arrowName", "turnIconName", "iconName");
+                if (!iconName.isEmpty()) {
+                    result.turnIconName = iconName;
                 }
                 int distance = integer(turn, "remainDistance", -1);
                 if (distance < 0) {
@@ -278,6 +283,14 @@ final class V21PayloadParser {
     private boolean boolAny(JSONObject object, boolean fallback, String... keys) {
         for (String key : keys) if (object.has(key)) return bool(object, key, fallback);
         return fallback;
+    }
+
+    private String firstNonEmptyString(JSONObject object, String... keys) {
+        for (String key : keys) {
+            String value = string(object, key, "").trim();
+            if (!value.isEmpty()) return value;
+        }
+        return "";
     }
 
     private boolean updateSpeedLimit(JSONObject object, HudState state) {

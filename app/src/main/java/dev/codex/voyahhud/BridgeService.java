@@ -80,7 +80,7 @@ public class BridgeService extends Service {
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.7";
+    private static final String BAIDU_HUD_APP_VERSION = "5.8";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -168,7 +168,7 @@ public class BridgeService extends Service {
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.7 created");
+        log("service 5.8 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -560,13 +560,8 @@ public class BridgeService extends Service {
 
     private void handleBaiduHudCarInfo(BNRemoteMessage.BNRGCarInfo value) {
         if (value == null || worker == null) return;
-        final int speed = Math.max(0, Math.min(299, value.getCurSpeed()));
         worker.post(() -> {
             markBaiduHudNavigationActive();
-            if (speed != state.speed) {
-                state.speed = speed;
-                scheduleRender();
-            }
         });
     }
 
@@ -1067,6 +1062,13 @@ public class BridgeService extends Service {
         if (payload == null || !payload.trim().startsWith("{")) return;
         try {
             V21PayloadParser.Result result = parser.apply(payload, state, !authoritativeGuideActive);
+            if (result.turnIconName != null && !result.turnIconName.isEmpty()) {
+                String resource = resourceFromTurnIconInfo(result.turnIconName);
+                if (resource != null && !resource.equals(state.turnIconResource)) {
+                    state.turnIconResource = resource;
+                    result.changed = true;
+                }
+            }
             String normalized = payload.toLowerCase(java.util.Locale.US);
             boolean explicitStatus = normalized.contains("is_in_navi")
                     || normalized.contains("navi_status");
