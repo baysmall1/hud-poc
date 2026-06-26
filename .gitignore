@@ -26,3 +26,5 @@ Thumbs.db
 *.jar
 *.aar
 *.tmp
+!app/libs/
+!app/libs/*.jar

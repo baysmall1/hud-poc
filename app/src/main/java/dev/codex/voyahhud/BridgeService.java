@@ -13,6 +13,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.ServiceConnection;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.SurfaceTexture;
 import android.os.Binder;
 import android.os.Bundle;
@@ -27,6 +28,11 @@ import android.util.Base64;
 import android.util.Log;
 import android.view.Surface;
 
+import com.baidu.navisdk.hudsdk.BNRemoteMessage;
+import com.baidu.navisdk.hudsdk.client.BNRemoteVistor;
+import com.baidu.navisdk.hudsdk.client.HUDSDkEventCallback;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 
@@ -73,6 +79,9 @@ public class BridgeService extends Service {
     private static final String NOTIFICATION_CHANNEL = "v21_h53_bridge";
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
+    private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
+    private static final String BAIDU_HUD_APP_VERSION = "5.6";
+    private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
     private static final int TRAFFIC_LIGHT_EVENT = 20001;
@@ -125,6 +134,9 @@ public class BridgeService extends Service {
     private boolean authoritativeGuideActive;
     private boolean navigationStatusKnown;
     private boolean navigationStatusActive;
+    private boolean baiduHudSdkInitialized;
+    private boolean baiduHudSdkOpening;
+    private boolean baiduHudSdkConnected;
     private long lastOpenControlBindAttemptAt;
     private boolean openControlUnavailable;
     private String lastRenderKey = "";
@@ -155,7 +167,8 @@ public class BridgeService extends Service {
         hudPreferences.registerOnSharedPreferenceChangeListener(settingsListener);
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
-        log("service 5.5 created");
+        startBaiduHudSdk();
+        log("service 5.6 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -310,14 +323,23 @@ public class BridgeService extends Service {
         String name = raw.trim().toLowerCase(java.util.Locale.US);
         if (name.isEmpty()) return null;
         if (name.endsWith(".png")) name = name.substring(0, name.length() - 4);
+        if (drawableExists(name)) return name;
         if (name.startsWith("ba_drawable_rg_ic_")) {
+            String v21Name = "ba_drawable_rg_ic_" + name.substring("ba_drawable_rg_ic_".length());
+            if (drawableExists(v21Name)) return v21Name;
             name = name.substring("ba_drawable_rg_ic_".length());
         } else if (name.startsWith("nsdk_drawable_rg_ic_")) {
             name = name.substring("nsdk_drawable_rg_ic_".length());
         } else if (name.startsWith("nsdk_drawable_rg_hud_")) {
             name = name.substring("nsdk_drawable_rg_hud_".length());
         } else if (name.startsWith("rg_ic_")) {
+            String v21Name = "ba_drawable_" + name;
+            if (drawableExists(v21Name)) return v21Name;
             name = name.substring("rg_ic_".length());
+        }
+        if (name.startsWith("turn_")) {
+            String v21Name = "ba_drawable_rg_ic_" + name;
+            if (drawableExists(v21Name)) return v21Name;
         }
         switch (name) {
             case "turn_front": return "rg_ic_turn_com_front";
@@ -372,6 +394,11 @@ public class BridgeService extends Service {
         }
     }
 
+    private boolean drawableExists(String name) {
+        return name != null && !name.isEmpty()
+                && getResources().getIdentifier(name, "drawable", getPackageName()) != 0;
+    }
+
     private void startAsForegroundService() {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -419,6 +446,7 @@ public class BridgeService extends Service {
 
     private void recoverConnections() {
         if (destroyed) return;
+        startBaiduHudSdk();
         if (v21Binder != null && !v21Binder.isBinderAlive()) {
             v21Binder = null;
             listenersSubscribed = false;
@@ -454,6 +482,294 @@ public class BridgeService extends Service {
                 }
             });
         }
+    }
+
+    private void startBaiduHudSdk() {
+        if (baiduHudSdkInitialized || destroyed) return;
+        try {
+            BNRemoteVistor vistor = BNRemoteVistor.getInstance();
+            vistor.setShowLog(true);
+            vistor.init(getApplicationContext(), BAIDU_HUD_APP_NAME, BAIDU_HUD_APP_VERSION,
+                    new HUDSDkEventCallback.OnRGInfoEventCallback() {
+                        @Override public void onManeuver(BNRemoteMessage.BNRGManeuver value) {
+                            handleBaiduHudManeuver(value);
+                        }
+
+                        @Override public void onRemainInfo(BNRemoteMessage.BNRGRemainInfo value) {
+                            handleBaiduHudRemainInfo(value);
+                        }
+
+                        @Override public void onCurrentRoad(BNRemoteMessage.BNRGCurrentRoad value) {
+                            if (value == null) return;
+                            updateBaiduHudRoad(value.getCurrentRoadName(), true);
+                        }
+
+                        @Override public void onNextRoad(BNRemoteMessage.BNRGNextRoad value) {
+                            if (value == null) return;
+                            updateBaiduHudRoad(value.getNextRoadName(), false);
+                        }
+
+                        @Override public void onNaviStart(BNRemoteMessage.BNRGNaviStart value) {
+                            worker.post(() -> {
+                                markBaiduHudNavigationActive();
+                                scheduleRender();
+                            });
+                        }
+
+                        @Override public void onNaviEnd(BNRemoteMessage.BNRGNaviEnd value) {
+                            worker.post(BridgeService.this::stopNavigation);
+                        }
+
+                        @Override public void onCruiseEnd(BNRemoteMessage.BNRGCruiseEnd value) {
+                            worker.post(BridgeService.this::stopNavigation);
+                        }
+
+                        @Override public void onEnlargeRoad(BNRemoteMessage.BNEnlargeRoad value) {
+                            handleBaiduHudEnlargeRoad(value);
+                        }
+
+                        @Override public void onCarInfo(BNRemoteMessage.BNRGCarInfo value) {
+                            handleBaiduHudCarInfo(value);
+                        }
+
+                        @Override public void onServiceArea(BNRemoteMessage.BNRGServiceArea value) { }
+                        @Override public void onAssistant(BNRemoteMessage.BNRGAssistant value) { }
+                        @Override public void onGPSLost(BNRemoteMessage.BNRGGPSLost value) { }
+                        @Override public void onGPSNormal(BNRemoteMessage.BNRGGPSNormal value) { }
+                        @Override public void onCruiseStart(BNRemoteMessage.BNRGCruiseStart value) { }
+                        @Override public void onRoutePlanYawing(BNRemoteMessage.BNRGRPYawing value) { }
+                        @Override public void onRoutePlanYawComplete(BNRemoteMessage.BNRGRPYawComplete value) { }
+                        @Override public void onCarFreeStatus(BNRemoteMessage.BNRGCarFreeStatus value) { }
+                        @Override public void onCarTunelInfo(BNRemoteMessage.BNRGCarTunelInfo value) { }
+                        @Override public void onDestInfo(BNRemoteMessage.BNRGDestInfo value) {
+                            handleBaiduHudDestInfo(value);
+                        }
+                        @Override public void onRouteInfo(BNRemoteMessage.BNRGRouteInfo value) { }
+                        @Override public void onCurShapeIndexUpdate(BNRemoteMessage.BNRGCurShapeIndexUpdate value) { }
+                        @Override public void onNearByCamera(BNRemoteMessage.BNRGNearByCameraInfo value) { }
+                    },
+                    new HUDSDkEventCallback.OnConnectCallback() {
+                        @Override public void onConnected() {
+                            baiduHudSdkOpening = false;
+                            baiduHudSdkConnected = true;
+                            log("Baidu HUD SDK connected");
+                        }
+
+                        @Override public void onReConnected() {
+                            baiduHudSdkOpening = false;
+                            baiduHudSdkConnected = true;
+                            log("Baidu HUD SDK reconnected");
+                        }
+
+                        @Override public void onClose(int code, String reason) {
+                            baiduHudSdkOpening = false;
+                            baiduHudSdkConnected = false;
+                            log("Baidu HUD SDK closed code=" + code + " reason=" + summarizeText(reason));
+                        }
+
+                        @Override public void onAuth(BNRemoteMessage.BNRGAuthSuccess value) {
+                            log("Baidu HUD SDK auth success");
+                        }
+
+                        @Override public void onStartLBSAuth() {
+                            log("Baidu HUD SDK LBS auth started");
+                        }
+
+                        @Override public void onEndLBSAuth(int result, String reason) {
+                            log("Baidu HUD SDK LBS auth result=" + result
+                                    + " reason=" + summarizeText(reason));
+                            if (result == 0) openBaiduHudSdk();
+                        }
+                    });
+            baiduHudSdkInitialized = true;
+            log("Baidu HUD SDK initialized");
+        } catch (Throwable error) {
+            log("Baidu HUD SDK init failed: " + summarize(error));
+        }
+    }
+
+    private void openBaiduHudSdk() {
+        if (baiduHudSdkOpening || baiduHudSdkConnected || destroyed) return;
+        try {
+            baiduHudSdkOpening = true;
+            BNRemoteVistor.getInstance().open();
+            log("Baidu HUD SDK open requested");
+        } catch (Throwable error) {
+            baiduHudSdkOpening = false;
+            log("Baidu HUD SDK open failed: " + summarize(error));
+        }
+    }
+
+    private void markBaiduHudNavigationActive() {
+        inactiveSignals = 0;
+        lastGuideEventAt = System.currentTimeMillis();
+        if (!state.navigating) log("Baidu HUD SDK navigation active");
+        state.navigating = true;
+        ensureHudOffscreenActive();
+    }
+
+    private void handleBaiduHudCarInfo(BNRemoteMessage.BNRGCarInfo value) {
+        if (value == null || worker == null) return;
+        final int speed = Math.max(0, Math.min(299, value.getCurSpeed()));
+        worker.post(() -> {
+            markBaiduHudNavigationActive();
+            if (speed != state.speed) {
+                state.speed = speed;
+                scheduleRender();
+            }
+        });
+    }
+
+    private void handleBaiduHudRemainInfo(BNRemoteMessage.BNRGRemainInfo value) {
+        if (value == null || worker == null) return;
+        final int distance = value.getRemainDistance();
+        final int time = value.getRemainTime();
+        worker.post(() -> {
+            markBaiduHudNavigationActive();
+            boolean changed = false;
+            if (distance >= 0 && distance != state.totalDistance) {
+                state.totalDistance = distance;
+                changed = true;
+            }
+            if (time >= 0 && time != state.totalTimeSeconds) {
+                state.totalTimeSeconds = time;
+                changed = true;
+            }
+            if (changed) scheduleRender();
+        });
+    }
+
+    private void handleBaiduHudDestInfo(BNRemoteMessage.BNRGDestInfo value) {
+        if (value == null || worker == null) return;
+        final int distance = value.getDestTotalDist();
+        worker.post(() -> {
+            markBaiduHudNavigationActive();
+            if (distance >= 0 && distance != state.totalDistance) {
+                state.totalDistance = distance;
+                scheduleRender();
+            }
+        });
+    }
+
+    private void updateBaiduHudRoad(String road, boolean current) {
+        if (road == null || worker == null) return;
+        final String normalized = road.trim();
+        if (normalized.isEmpty()) return;
+        worker.post(() -> {
+            markBaiduHudNavigationActive();
+            boolean changed;
+            if (current) {
+                changed = !normalized.equals(state.currentRoad);
+                if (changed) state.currentRoad = normalized;
+            } else {
+                changed = !normalized.equals(state.nextRoad);
+                if (changed) state.nextRoad = normalized;
+            }
+            if (changed) scheduleRender();
+        });
+    }
+
+    private void handleBaiduHudManeuver(BNRemoteMessage.BNRGManeuver value) {
+        if (value == null || worker == null) return;
+        final int maneuverId = value.getManeuverId();
+        final int distance = value.getManeuverDistance();
+        final String name = trimToEmpty(value.getManeuverName());
+        final String nextRoad = trimToEmpty(value.getNextRoadName());
+        final String tips = trimToEmpty(value.getRGTips());
+        worker.post(() -> {
+            markBaiduHudNavigationActive();
+            boolean changed = false;
+            if (state.turnIconResource == null || state.turnIconResource.isEmpty()) {
+                if (maneuverId != state.turnKind) {
+                    state.turnKind = maneuverId;
+                    changed = true;
+                }
+            }
+            if (distance >= 0 && distance != state.maneuverDistance) {
+                state.maneuverDistance = distance;
+                state.maneuverDistanceText = "";
+                state.maneuverDistanceUnit = "";
+                changed = true;
+            }
+            if (!name.isEmpty() && !name.equals(state.direction)) {
+                state.direction = name;
+                changed = true;
+            }
+            if (!nextRoad.isEmpty() && !nextRoad.equals(state.nextRoad)) {
+                state.nextRoad = nextRoad;
+                changed = true;
+            }
+            String immediate = tips.contains("现在进入") ? tips : "";
+            if (!immediate.equals(state.immediateGuideText)) {
+                state.immediateGuideText = immediate;
+                changed = true;
+            }
+            if (changed) scheduleRender();
+        });
+    }
+
+    private void handleBaiduHudEnlargeRoad(BNRemoteMessage.BNEnlargeRoad value) {
+        if (value == null || worker == null) return;
+        final int enlargeState = value.getEnlargeRoadState();
+        final int remainDistance = value.getRemainDist();
+        final String roadName = trimToEmpty(value.getRoadName());
+        final byte[] png = enlargeState == EXPAND_MAP_STATE_HIDE
+                ? null : composeEnlargePng(value.getBasicImage(), value.getArrowImage());
+        worker.post(() -> {
+            markBaiduHudNavigationActive();
+            boolean changed = false;
+            if (enlargeState == EXPAND_MAP_STATE_HIDE) {
+                if (state.enlargeImage != null) {
+                    state.enlargeImage = null;
+                    state.enlargeUpdatedAt = 0;
+                    changed = true;
+                }
+            } else if (png != null && png.length > 0) {
+                state.enlargeImage = png;
+                state.enlargeUpdatedAt = System.currentTimeMillis();
+                changed = true;
+            }
+            if (remainDistance >= 0 && remainDistance != state.maneuverDistance) {
+                state.maneuverDistance = remainDistance;
+                state.maneuverDistanceText = "";
+                state.maneuverDistanceUnit = "";
+                changed = true;
+            }
+            if (!roadName.isEmpty() && !roadName.equals(state.nextRoad)) {
+                state.nextRoad = roadName;
+                changed = true;
+            }
+            if (changed) scheduleRender();
+        });
+    }
+
+    private byte[] composeEnlargePng(Bitmap basicImage, Bitmap arrowImage) {
+        Bitmap source = basicImage != null ? basicImage : arrowImage;
+        if (source == null) return null;
+        Bitmap output = null;
+        try {
+            output = Bitmap.createBitmap(source.getWidth(), source.getHeight(), Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(output);
+            if (basicImage != null) {
+                canvas.drawBitmap(basicImage, 0, 0, null);
+            }
+            if (arrowImage != null) {
+                canvas.drawBitmap(arrowImage, null,
+                        new android.graphics.Rect(0, 0, output.getWidth(), output.getHeight()), null);
+            }
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            output.compress(Bitmap.CompressFormat.PNG, 100, bytes);
+            return bytes.toByteArray();
+        } catch (Throwable error) {
+            log("Baidu HUD SDK enlarge compose failed: " + summarize(error));
+            return null;
+        } finally {
+            if (output != null) output.recycle();
+        }
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private void bindMapAidl() {
@@ -1090,6 +1406,9 @@ public class BridgeService extends Service {
         if (baiduBroadcastReceiver != null) try { unregisterReceiver(baiduBroadcastReceiver); } catch (Throwable ignored) { }
         if (resumeReceiver != null) try { unregisterReceiver(resumeReceiver); } catch (Throwable ignored) { }
         if (hudPreferences != null) hudPreferences.unregisterOnSharedPreferenceChangeListener(settingsListener);
+        if (baiduHudSdkInitialized) {
+            try { BNRemoteVistor.getInstance().unInit(); } catch (Throwable ignored) { }
+        }
         if (v21Connection != null) try { unbindService(v21Connection); } catch (Throwable ignored) { }
         releaseHudOffscreenSurface(true);
         if (mapAidlConnection != null) try { unbindService(mapAidlConnection); } catch (Throwable ignored) { }
@@ -1105,6 +1424,12 @@ public class BridgeService extends Service {
         if (payload == null) return "null";
         String compact = payload.replace('\n', ' ').replace('\r', ' ').trim();
         return compact.length() <= 180 ? compact : compact.substring(0, 180) + "...";
+    }
+
+    private String summarizeText(String text) {
+        if (text == null) return "";
+        String compact = text.replace('\n', ' ').replace('\r', ' ').trim();
+        return compact.length() <= 120 ? compact : compact.substring(0, 120) + "...";
     }
 
     private String summarize(Throwable error) {

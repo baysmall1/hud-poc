@@ -6,6 +6,8 @@
     <uses-permission android:name="mega.car.permission.CAR_DRIVING" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -21,6 +23,10 @@
             android:name="dev.codex.voyahhud.BridgeService"
             android:enabled="true"
             android:exported="false" />
+        <service
+            android:name="com.baidu.location.f"
+            android:enabled="true"
+            android:process=":remote" />
         <receiver
             android:name="dev.codex.voyahhud.BootReceiver"
             android:enabled="true"
