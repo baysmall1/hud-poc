@@ -10,8 +10,8 @@ android {
         applicationId "dev.codex.h53direct"
         minSdk 23
         targetSdk 28
-        versionCode 56
-        versionName "5.6"
+        versionCode 57
+        versionName "5.7"
     }
 }
 

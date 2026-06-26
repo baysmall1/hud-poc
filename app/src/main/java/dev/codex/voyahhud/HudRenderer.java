@@ -156,6 +156,7 @@ final class HudRenderer {
     }
 
     private void drawSpeed(Canvas canvas, int speed) {
+        if (speed < 0) return;
         int value = Math.max(0, Math.min(speed < 0 ? 0 : speed, 299));
         String digits = String.valueOf(value);
         Bitmap[] bitmaps = new Bitmap[digits.length()];

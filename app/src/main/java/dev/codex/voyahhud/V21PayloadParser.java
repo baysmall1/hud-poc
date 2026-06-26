@@ -125,9 +125,10 @@ final class V21PayloadParser {
         }
 
         if (function.contains("speed_limit")) {
-            JSONObject limit = findObjectWith(root, "speedLimit");
+            JSONObject limit = findObjectWithAny(root, "speedLimit", "limitSpeed", "currentSpeed");
             if (limit != null) {
                 result.changed |= updateSpeedLimit(limit, state);
+                result.changed |= updateCurrentSpeed(limit, state);
             }
         }
 
@@ -280,10 +281,22 @@ final class V21PayloadParser {
     }
 
     private boolean updateSpeedLimit(JSONObject object, HudState state) {
-        int value = integer(object, "speedLimit", -1);
+        int value = intAny(object, -1, "speedLimit", "limitSpeed");
         if (value >= 0 && value != state.speedLimit) {
             state.speedLimit = value;
             return true;
+        }
+        return false;
+    }
+
+    private boolean updateCurrentSpeed(JSONObject object, HudState state) {
+        int value = intAny(object, -1, "currentSpeed", "curSpeed", "CUR_SPEED");
+        if (value >= 0) {
+            int normalized = Math.max(0, Math.min(299, value));
+            if (normalized != state.speed) {
+                state.speed = normalized;
+                return true;
+            }
         }
         return false;
     }
