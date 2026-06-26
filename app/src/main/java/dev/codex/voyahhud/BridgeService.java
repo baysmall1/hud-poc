@@ -80,7 +80,7 @@ public class BridgeService extends Service {
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.9";
+    private static final String BAIDU_HUD_APP_VERSION = "5.10";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -88,7 +88,6 @@ public class BridgeService extends Service {
     private static final String BAIDU_NAVI_INDUCE_ACTION =
             "com.baidu.map.auto.NOTIFY.ACTION_NAVI_INDUCUD";
     private static final String EXTRA_NEXT_TURN_DISTANCE = "NEXT_TURN_ICON_DISTANCE";
-    private static final String EXTRA_CURRENT_SPEED = "CUR_SPEED";
     private static final String EXTRA_LIMITED_SPEED = "LIMITED_SPEED";
     private static final String EXTRA_ROUTE_REMAIN_DISTANCE = "ROUTE_REMAIN_DIS";
     private static final String EXTRA_ROUTE_REMAIN_TIME = "ROUTE_REMAIN_TIME";
@@ -166,7 +165,7 @@ public class BridgeService extends Service {
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.9 created");
+        log("service 5.10 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -228,19 +227,11 @@ public class BridgeService extends Service {
     private void handleOfficialNaviInduce(Intent intent) {
         if (worker == null) return;
         final int distance = firstIntExtra(intent, -1, EXTRA_NEXT_TURN_DISTANCE);
-        final int speed = firstIntExtra(intent, -1, EXTRA_CURRENT_SPEED);
         final int speedLimit = firstIntExtra(intent, -1, EXTRA_LIMITED_SPEED);
         final int totalDistance = firstIntExtra(intent, -1, EXTRA_ROUTE_REMAIN_DISTANCE);
         final int totalTime = firstIntExtra(intent, -1, EXTRA_ROUTE_REMAIN_TIME);
         worker.post(() -> {
             boolean changed = false;
-            if (speed >= 0) {
-                int normalizedSpeed = Math.max(0, Math.min(299, speed));
-                if (normalizedSpeed != state.speed) {
-                    state.speed = normalizedSpeed;
-                    changed = true;
-                }
-            }
             if (speedLimit >= 0 && speedLimit != state.speedLimit) {
                 state.speedLimit = speedLimit;
                 changed = true;

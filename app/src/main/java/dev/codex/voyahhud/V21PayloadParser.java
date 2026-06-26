@@ -104,6 +104,7 @@ final class V21PayloadParser {
                     state.currentRoad = road;
                     result.changed = true;
                 }
+                result.changed |= updateMapMatchSpeed(match, state);
                 result.changed |= updateSpeedLimit(match, state);
             }
         }
@@ -128,7 +129,6 @@ final class V21PayloadParser {
             JSONObject limit = findObjectWithAny(root, "speedLimit", "limitSpeed", "currentSpeed");
             if (limit != null) {
                 result.changed |= updateSpeedLimit(limit, state);
-                result.changed |= updateCurrentSpeed(limit, state);
             }
         }
 
@@ -275,6 +275,11 @@ final class V21PayloadParser {
         return fallback;
     }
 
+    private double doubleAny(JSONObject object, double fallback, String... keys) {
+        for (String key : keys) if (object.has(key)) return decimal(object, key, fallback);
+        return fallback;
+    }
+
     private boolean boolAny(JSONObject object, boolean fallback, String... keys) {
         for (String key : keys) if (object.has(key)) return bool(object, key, fallback);
         return fallback;
@@ -289,10 +294,10 @@ final class V21PayloadParser {
         return false;
     }
 
-    private boolean updateCurrentSpeed(JSONObject object, HudState state) {
-        int value = intAny(object, -1, "currentSpeed", "curSpeed", "CUR_SPEED");
-        if (value >= 0) {
-            int normalized = Math.max(0, Math.min(299, value));
+    private boolean updateMapMatchSpeed(JSONObject object, HudState state) {
+        double metersPerSecond = doubleAny(object, -1d, "speed");
+        if (metersPerSecond >= 0d) {
+            int normalized = Math.max(0, Math.min(299, (int) Math.round(metersPerSecond * 3.6d)));
             if (normalized != state.speed) {
                 state.speed = normalized;
                 return true;
@@ -557,6 +562,13 @@ final class V21PayloadParser {
         Object value = object.opt(key);
         if (value instanceof Number) return ((Number) value).intValue();
         if (value instanceof String) try { return Integer.parseInt((String) value); } catch (NumberFormatException ignored) { }
+        return fallback;
+    }
+
+    private double decimal(JSONObject object, String key, double fallback) {
+        Object value = object.opt(key);
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        if (value instanceof String) try { return Double.parseDouble((String) value); } catch (NumberFormatException ignored) { }
         return fallback;
     }
 
