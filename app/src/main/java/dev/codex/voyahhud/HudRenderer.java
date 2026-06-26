@@ -227,6 +227,7 @@ final class HudRenderer {
     }
 
     private Bitmap loadAsset(String name) {
+        if (name == null || name.isEmpty()) return null;
         int id = context.getResources().getIdentifier(name, "drawable", context.getPackageName());
         return id == 0 ? null : BitmapFactory.decodeResource(context.getResources(), id);
     }
@@ -259,87 +260,86 @@ final class HudRenderer {
 
     private String turnResource(int kind) {
         if (kind == 1 || kind == 69 || kind == 98 || kind == 99 || kind == 150
-                || kind == 501 || kind == 999) return "rg_ic_turn_com_front";
-        if (kind == 2 || kind == 102) return "rg_ic_turn_com_right_front";
-        if (kind == 3) return "rg_ic_turn_com_right";
-        if (kind == 4) return "rg_ic_turn_com_right_back";
-        if (kind == 5) return "rg_ic_turn_com_back";
-        if (kind == 6) return "rg_ic_turn_com_left_back";
-        if (kind == 7) return "rg_ic_turn_com_left";
-        if (kind == 8) return "rg_ic_turn_com_left_front";
-        if (kind == 9) return "rg_ic_turn_com_ring";
-        if (kind == 10) return "rg_ic_turn_com_ring_out";
-        if (kind == 11) return "rg_ic_turn_com_left_side";
-        if (kind == 12) return "rg_ic_turn_com_right_side";
-        if (kind == 13 || kind == 32) return "rg_ic_turn_left_side_main";
+                || kind == 501 || kind == 999) return "ba_drawable_rg_ic_turn_front";
+        if (kind == 2 || kind == 102) return "ba_drawable_rg_ic_turn_right_front";
+        if (kind == 3) return "ba_drawable_rg_ic_turn_right";
+        if (kind == 4) return "ba_drawable_rg_ic_turn_right_back";
+        if (kind == 5) return "ba_drawable_rg_ic_turn_back";
+        if (kind == 6) return "ba_drawable_rg_ic_turn_left_back";
+        if (kind == 7) return "ba_drawable_rg_ic_turn_left";
+        if (kind == 8) return "ba_drawable_rg_ic_turn_left_front";
+        if (kind == 9) return "ba_drawable_rg_ic_turn_ring";
+        if (kind == 10) return "ba_drawable_rg_ic_turn_ring_out";
+        if (kind == 11) return "ba_drawable_rg_ic_turn_left_side";
+        if (kind == 12) return "ba_drawable_rg_ic_turn_right_side";
+        if (kind == 13 || kind == 32) return "ba_drawable_rg_ic_turn_left_side_main";
         if (kind == 14 || kind == 36 || kind == 42 || kind == 47
                 || kind == 34 || kind == 45 || kind == 151 || kind == 153)
-            return "rg_ic_turn_com_front";
-        if (kind == 15 || kind == 33) return "rg_ic_turn_right_side_main";
+            return "ba_drawable_rg_ic_turn_branch_left_straight";
+        if (kind == 15 || kind == 33) return "ba_drawable_rg_ic_turn_right_side_main";
         if (kind == 16 || kind == 38 || kind == 44 || kind == 49
                 || kind == 35 || kind == 46 || kind == 152 || kind == 154)
-            return "rg_ic_turn_com_front";
+            return "ba_drawable_rg_ic_turn_branch_right_straight";
         if (kind == 17 || kind == 22 || kind == 37 || kind == 40 || kind == 43
-                || kind == 48 || kind == 155) return "rg_ic_turn_branch_center";
-        if (kind == 18) return "rg_ic_turn_left_side_ic";
-        if (kind == 19) return "rg_ic_turn_right_side_ic";
-        if (kind == 20 || kind == 39) return "rg_ic_turn_branch_left";
-        if (kind == 21 || kind == 41) return "rg_ic_turn_branch_right";
-        if (kind == 23) return "rg_ic_turn_start";
-        if (kind == 24) return "rg_ic_turn_com_dest";
-        if (between(kind, 25, 28)) return "rg_ic_turn_com_via";
-        if (kind == 29 || kind == 30) return "rg_ic_turn_com_inferry";
-        if (kind == 31 || kind == 500) return "rg_ic_turn_com_tollgate";
-        if (kind == 50) return "rg_ic_turn_left_2branch_left";
-        if (kind == 51) return "rg_ic_turn_left_2branch_right";
-        if (kind == 52) return "rg_ic_turn_left_3branch_left";
-        if (kind == 53) return "rg_ic_turn_left_3branch_center";
-        if (kind == 54) return "rg_ic_turn_left_3branch_right";
-        if (kind == 55) return "rg_ic_turn_com_right";
-        if (kind == 56) return "rg_ic_turn_right_2branch_right";
-        if (kind == 57) return "rg_ic_turn_right_3branch_left";
-        if (kind == 58) return "rg_ic_turn_right_3branch_center";
-        if (kind == 59) return "rg_ic_turn_right_3branch_right";
-        if (kind == 60) return "rg_ic_turn_lf_2branch_left";
-        if (kind == 61) return "rg_ic_turn_lf_2branch_right";
-        if (kind == 62) return "rg_ic_turn_rf_2branch_left";
-        if (kind == 63) return "rg_ic_turn_rf_2branch_right";
-        if (kind == 64) return "rg_ic_turn_back_2branch_left";
-        if (kind == 65) return "rg_ic_turn_back_2branch_right";
-        if (kind == 66) return "rg_ic_turn_back_3branch_left";
-        if (kind == 67) return "rg_ic_turn_back_3branch_center";
-        if (kind == 68) return "rg_ic_turn_back_3branch_right";
-        if (kind == 70) return "rg_ic_turn_parking_floor";
-        if (kind == 71) return "rg_ic_turn_left_front_not_left";
-        if (kind == 72) return "rg_ic_turn_right_front_not_right";
-        if (kind == 73) return "rg_ic_turn_left_back_not_back";
-        if (kind == 74) return "rg_ic_turn_left_front_3branch_left";
-        if (kind == 75) return "rg_ic_turn_left_front_3branch_middle";
-        if (kind == 76) return "rg_ic_turn_left_front_3branch_right";
-        if (kind == 77) return "rg_ic_turn_right_front_3branch_left";
-        if (kind == 78) return "rg_ic_turn_right_front_3branch_middle";
-        if (kind == 79) return "rg_ic_turn_right_front_3branch_right";
-        if (kind == 80) return "rg_ic_turn_left_back_2branch_left";
-        if (kind == 81) return "rg_ic_turn_left_back_2branch_right";
-        if (kind == 82) return "rg_ic_turn_left_back_3branch_left";
-        if (kind == 83) return "rg_ic_turn_left_back_3branch_middle";
-        if (kind == 84) return "rg_ic_turn_left_back_3branch_right";
-        if (kind == 85) return "rg_ic_turn_right_back_2branch_left";
-        if (kind == 86) return "rg_ic_turn_right_back_2branch_right";
-        if (kind == 87) return "rg_ic_turn_right_back_3branch_left";
-        if (kind == 88) return "rg_ic_turn_right_back_3branch_middle";
-        if (kind == 89) return "rg_ic_turn_right_back_3branch_right";
-        if (kind == 90) return "rg_ic_turn_com_ring_front";
-        if (kind == 91) return "rg_ic_turn_ring_rightfront";
-        if (kind == 92) return "rg_ic_turn_com_ring_right";
-        if (kind == 93) return "rg_ic_turn_ring_rightback";
-        if (kind == 94) return "rg_ic_turn_com_ring_turnback";
-        if (kind == 95) return "rg_ic_turn_ring_leftback";
-        if (kind == 96) return "rg_ic_turn_com_ring_left";
-        if (kind == 97) return "rg_ic_turn_ring_leftfront";
-        if (kind == 100) return "rg_ic_turn_back_right";
-        if (kind == 101) return "rg_ic_turn_right_back_not_back";
-        return "rg_ic_turn_com_front";
+                || kind == 48 || kind == 155) return "ba_drawable_rg_ic_turn_branch_center";
+        if (kind == 18) return "ba_drawable_rg_ic_turn_left_side_ic";
+        if (kind == 19) return "ba_drawable_rg_ic_turn_right_side_ic";
+        if (kind == 20 || kind == 39) return "ba_drawable_rg_ic_turn_branch_left";
+        if (kind == 21 || kind == 41) return "ba_drawable_rg_ic_turn_branch_right";
+        if (kind == 23) return "ba_drawable_rg_ic_turn_start";
+        if (kind == 24) return "ba_drawable_rg_ic_turn_dest";
+        if (between(kind, 25, 28)) return "ba_drawable_rg_ic_turn_via_1";
+        if (kind == 29 || kind == 30) return "ba_drawable_rg_ic_turn_inferry";
+        if (kind == 31 || kind == 500) return "ba_drawable_rg_ic_turn_tollgate";
+        if (kind == 50) return "ba_drawable_rg_ic_turn_left_2branch_left";
+        if (kind == 51) return "ba_drawable_rg_ic_turn_left_2branch_right";
+        if (kind == 52) return "ba_drawable_rg_ic_turn_left_3branch_left";
+        if (kind == 53) return "ba_drawable_rg_ic_turn_left_3branch_center";
+        if (kind == 54) return "ba_drawable_rg_ic_turn_left_3branch_right";
+        if (kind == 55) return "ba_drawable_rg_ic_turn_right";
+        if (kind == 56) return "ba_drawable_rg_ic_turn_right_2branch_right";
+        if (kind == 57) return "ba_drawable_rg_ic_turn_right_3branch_left";
+        if (kind == 58) return "ba_drawable_rg_ic_turn_right_3branch_center";
+        if (kind == 59) return "ba_drawable_rg_ic_turn_right_3branch_right";
+        if (kind == 60) return "ba_drawable_rg_ic_turn_lf_2branch_left";
+        if (kind == 61) return "ba_drawable_rg_ic_turn_lf_2branch_right";
+        if (kind == 62) return "ba_drawable_rg_ic_turn_rf_2branch_left";
+        if (kind == 63) return "ba_drawable_rg_ic_turn_rf_2branch_right";
+        if (kind == 64) return "ba_drawable_rg_ic_turn_back_2branch_left";
+        if (kind == 65) return "ba_drawable_rg_ic_turn_back_2branch_right";
+        if (kind == 66) return "ba_drawable_rg_ic_turn_back_3branch_left";
+        if (kind == 67) return "ba_drawable_rg_ic_turn_back_3branch_center";
+        if (kind == 68) return "ba_drawable_rg_ic_turn_back_3branch_right";
+        if (kind == 71) return "ba_drawable_rg_ic_turn_lf_notl";
+        if (kind == 72) return "ba_drawable_rg_ic_turn_rf_notr";
+        if (kind == 73) return "ba_drawable_rg_ic_turn_lb_notback";
+        if (kind == 74) return "ba_drawable_rg_ic_turn_lf_3branch_left";
+        if (kind == 75) return "ba_drawable_rg_ic_turn_lf_3branch_center";
+        if (kind == 76) return "ba_drawable_rg_ic_turn_lf_3branch_right";
+        if (kind == 77) return "ba_drawable_rg_ic_turn_rf_3branch_left";
+        if (kind == 78) return "ba_drawable_rg_ic_turn_rf_3branch_center";
+        if (kind == 79) return "ba_drawable_rg_ic_turn_rf_3branch_right";
+        if (kind == 80) return "ba_drawable_rg_ic_turn_lb_2branch_left";
+        if (kind == 81) return "ba_drawable_rg_ic_turn_lb_2branch_right";
+        if (kind == 82) return "ba_drawable_rg_ic_turn_lb_3branch_left";
+        if (kind == 83) return "ba_drawable_rg_ic_turn_lb_3branch_center";
+        if (kind == 84) return "ba_drawable_rg_ic_turn_lb_3branch_right";
+        if (kind == 85) return "ba_drawable_rg_ic_turn_rb_2branch_left";
+        if (kind == 86) return "ba_drawable_rg_ic_turn_rb_2branch_right";
+        if (kind == 87) return "ba_drawable_rg_ic_turn_rb_3branch_left";
+        if (kind == 88) return "ba_drawable_rg_ic_turn_rb_3branch_center";
+        if (kind == 89) return "ba_drawable_rg_ic_turn_rb_3branch_right";
+        if (kind == 90) return "ba_drawable_rg_ic_turn_ring_front";
+        if (kind == 91) return "ba_drawable_rg_ic_turn_ring_rightfront";
+        if (kind == 92) return "ba_drawable_rg_ic_turn_ring_right";
+        if (kind == 93) return "ba_drawable_rg_ic_turn_ring_rightback";
+        if (kind == 94) return "ba_drawable_rg_ic_turn_ring_turnback";
+        if (kind == 95) return "ba_drawable_rg_ic_turn_ring_leftback";
+        if (kind == 96) return "ba_drawable_rg_ic_turn_ring_left";
+        if (kind == 97) return "ba_drawable_rg_ic_turn_ring_leftfront";
+        if (kind == 100) return "ba_drawable_rg_ic_turn_back_right";
+        if (kind == 101) return "ba_drawable_rg_ic_turn_rb_notback";
+        return null;
     }
 
     private boolean between(int value, int start, int end) {

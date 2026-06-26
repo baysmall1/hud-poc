@@ -341,57 +341,7 @@ public class BridgeService extends Service {
             String v21Name = "ba_drawable_rg_ic_" + name;
             if (drawableExists(v21Name)) return v21Name;
         }
-        switch (name) {
-            case "turn_front": return "rg_ic_turn_com_front";
-            case "turn_along": return "rg_ic_turn_com_front";
-            case "turn_back": return "rg_ic_turn_com_back";
-            case "turn_right_front": return "rg_ic_turn_com_right_front";
-            case "turn_right": return "rg_ic_turn_com_right";
-            case "turn_right_back": return "rg_ic_turn_com_right_back";
-            case "turn_left_back": return "rg_ic_turn_com_left_back";
-            case "turn_left": return "rg_ic_turn_com_left";
-            case "turn_left_front": return "rg_ic_turn_com_left_front";
-            case "turn_ring": return "rg_ic_turn_com_ring";
-            case "turn_ring_front": return "rg_ic_turn_com_ring_front";
-            case "turn_ring_left": return "rg_ic_turn_com_ring_left";
-            case "turn_ring_leftback": return "rg_ic_turn_ring_leftback";
-            case "turn_ring_leftfront": return "rg_ic_turn_ring_leftfront";
-            case "turn_ring_right": return "rg_ic_turn_com_ring_right";
-            case "turn_ring_rightback": return "rg_ic_turn_ring_rightback";
-            case "turn_ring_rightfront": return "rg_ic_turn_ring_rightfront";
-            case "turn_ring_turnback": return "rg_ic_turn_com_ring_turnback";
-            case "turn_left_side": return "rg_ic_turn_com_left_side";
-            case "turn_right_side": return "rg_ic_turn_com_right_side";
-            case "turn_left_side_main": return "rg_ic_turn_left_side_main";
-            case "turn_right_side_main": return "rg_ic_turn_right_side_main";
-            case "turn_left_side_ic": return "rg_ic_turn_left_side_ic";
-            case "turn_right_side_ic": return "rg_ic_turn_right_side_ic";
-            case "turn_branch_left_straight": return "rg_ic_turn_com_front";
-            case "turn_branch_right_straight": return "rg_ic_turn_com_front";
-            case "turn_branch_center": return "rg_ic_turn_branch_center";
-            case "turn_branch_left": return "rg_ic_turn_branch_left";
-            case "turn_branch_right": return "rg_ic_turn_branch_right";
-            case "turn_lf_2branch_left": return "rg_ic_turn_lf_2branch_left";
-            case "turn_lf_2branch_right": return "rg_ic_turn_lf_2branch_right";
-            case "turn_rf_2branch_left": return "rg_ic_turn_rf_2branch_left";
-            case "turn_rf_2branch_right": return "rg_ic_turn_rf_2branch_right";
-            case "turn_dest": return "rg_ic_turn_com_dest";
-            case "turn_via":
-            case "turn_via_1":
-            case "turn_via_2":
-            case "turn_via_3":
-            case "turn_via_4": return "rg_ic_turn_com_via";
-            case "turn_inferry": return "rg_ic_turn_com_inferry";
-            case "turn_tollgate": return "rg_ic_turn_com_tollgate";
-            case "turn_start": return "rg_ic_turn_start";
-            default:
-                if (name.startsWith("turn_")) {
-                    String candidate = "rg_ic_" + name;
-                    int id = getResources().getIdentifier(candidate, "drawable", getPackageName());
-                    return id == 0 ? null : candidate;
-                }
-                return null;
-        }
+        return null;
     }
 
     private boolean drawableExists(String name) {
