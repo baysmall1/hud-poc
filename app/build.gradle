@@ -1,0 +1,16 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "dev.codex.voyahhud"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "dev.codex.h53direct"
+        minSdk 23
+        targetSdk 28
+        versionCode 55
+        versionName "5.5"
+    }
+}

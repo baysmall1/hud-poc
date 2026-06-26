@@ -1,0 +1,28 @@
+# Build outputs
+build/
+.gradle/
+app/build/
+manual-build/
+
+# Local previews / generated screenshots
+previews/
+
+# IDE / OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# APK/signing artifacts
+*.apk
+*.ap_
+*.idsig
+*.keystore
+*.jks
+
+# Java/Android intermediates
+*.class
+*.dex
+*.jar
+*.aar
+*.tmp
