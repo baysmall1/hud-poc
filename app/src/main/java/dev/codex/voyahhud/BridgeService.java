@@ -87,8 +87,6 @@ public class BridgeService extends Service {
     private static final int TRAFFIC_LIGHT_EVENT = 20001;
     private static final String BAIDU_NAVI_INDUCE_ACTION =
             "com.baidu.map.auto.NOTIFY.ACTION_NAVI_INDUCUD";
-    private static final String EXTRA_TURN_ICONINFO = "TURN_ICONINFO";
-    private static final String EXTRA_V21_ICON = "ICON";
     private static final String EXTRA_NEXT_TURN_DISTANCE = "NEXT_TURN_ICON_DISTANCE";
     private static final String EXTRA_CURRENT_SPEED = "CUR_SPEED";
     private static final String EXTRA_LIMITED_SPEED = "LIMITED_SPEED";
@@ -229,7 +227,6 @@ public class BridgeService extends Service {
 
     private void handleOfficialNaviInduce(Intent intent) {
         if (worker == null) return;
-        final String iconName = firstStringExtra(intent, EXTRA_TURN_ICONINFO, EXTRA_V21_ICON);
         final int distance = firstIntExtra(intent, -1, EXTRA_NEXT_TURN_DISTANCE);
         final int speed = firstIntExtra(intent, -1, EXTRA_CURRENT_SPEED);
         final int speedLimit = firstIntExtra(intent, -1, EXTRA_LIMITED_SPEED);
@@ -237,11 +234,6 @@ public class BridgeService extends Service {
         final int totalTime = firstIntExtra(intent, -1, EXTRA_ROUTE_REMAIN_TIME);
         worker.post(() -> {
             boolean changed = false;
-            String resource = resourceFromTurnIconInfo(iconName);
-            if (resource != null && !resource.equals(state.turnIconResource)) {
-                state.turnIconResource = resource;
-                changed = true;
-            }
             if (speed >= 0) {
                 int normalizedSpeed = Math.max(0, Math.min(299, speed));
                 if (normalizedSpeed != state.speed) {
@@ -281,18 +273,6 @@ public class BridgeService extends Service {
         });
     }
 
-    private String firstStringExtra(Intent intent, String... keys) {
-        Bundle extras = intent.getExtras();
-        if (extras == null) return null;
-        for (String key : keys) {
-            Object value = extras.get(key);
-            if (value == null) continue;
-            String text = String.valueOf(value).trim();
-            if (!text.isEmpty()) return text;
-        }
-        return null;
-    }
-
     private int firstIntExtra(Intent intent, int fallback, String... keys) {
         Bundle extras = intent.getExtras();
         if (extras == null) return fallback;
@@ -316,37 +296,6 @@ public class BridgeService extends Service {
             }
         }
         return fallback;
-    }
-
-    private String resourceFromTurnIconInfo(String raw) {
-        if (raw == null) return null;
-        String name = raw.trim().toLowerCase(java.util.Locale.US);
-        if (name.isEmpty()) return null;
-        if (name.endsWith(".png")) name = name.substring(0, name.length() - 4);
-        if (drawableExists(name)) return name;
-        if (name.startsWith("ba_drawable_rg_ic_")) {
-            String v21Name = "ba_drawable_rg_ic_" + name.substring("ba_drawable_rg_ic_".length());
-            if (drawableExists(v21Name)) return v21Name;
-            name = name.substring("ba_drawable_rg_ic_".length());
-        } else if (name.startsWith("nsdk_drawable_rg_ic_")) {
-            name = name.substring("nsdk_drawable_rg_ic_".length());
-        } else if (name.startsWith("nsdk_drawable_rg_hud_")) {
-            name = name.substring("nsdk_drawable_rg_hud_".length());
-        } else if (name.startsWith("rg_ic_")) {
-            String v21Name = "ba_drawable_" + name;
-            if (drawableExists(v21Name)) return v21Name;
-            name = name.substring("rg_ic_".length());
-        }
-        if (name.startsWith("turn_")) {
-            String v21Name = "ba_drawable_rg_ic_" + name;
-            if (drawableExists(v21Name)) return v21Name;
-        }
-        return null;
-    }
-
-    private boolean drawableExists(String name) {
-        return name != null && !name.isEmpty()
-                && getResources().getIdentifier(name, "drawable", getPackageName()) != 0;
     }
 
     private void startAsForegroundService() {
@@ -1062,13 +1011,6 @@ public class BridgeService extends Service {
         if (payload == null || !payload.trim().startsWith("{")) return;
         try {
             V21PayloadParser.Result result = parser.apply(payload, state, !authoritativeGuideActive);
-            if (result.turnIconName != null && !result.turnIconName.isEmpty()) {
-                String resource = resourceFromTurnIconInfo(result.turnIconName);
-                if (resource != null && !resource.equals(state.turnIconResource)) {
-                    state.turnIconResource = resource;
-                    result.changed = true;
-                }
-            }
             String normalized = payload.toLowerCase(java.util.Locale.US);
             boolean explicitStatus = normalized.contains("is_in_navi")
                     || normalized.contains("navi_status");
