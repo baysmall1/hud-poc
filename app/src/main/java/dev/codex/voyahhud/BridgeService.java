@@ -80,7 +80,7 @@ public class BridgeService extends Service {
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.10";
+    private static final String BAIDU_HUD_APP_VERSION = "5.11";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -165,7 +165,7 @@ public class BridgeService extends Service {
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.10 created");
+        log("service 5.11 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -556,7 +556,6 @@ public class BridgeService extends Service {
 
     private void handleBaiduHudManeuver(BNRemoteMessage.BNRGManeuver value) {
         if (value == null || worker == null) return;
-        final int maneuverId = value.getManeuverId();
         final int distance = value.getManeuverDistance();
         final String name = trimToEmpty(value.getManeuverName());
         final String nextRoad = trimToEmpty(value.getNextRoadName());
@@ -564,12 +563,6 @@ public class BridgeService extends Service {
         worker.post(() -> {
             markBaiduHudNavigationActive();
             boolean changed = false;
-            if (state.turnIconResource == null || state.turnIconResource.isEmpty()) {
-                if (maneuverId != state.turnKind) {
-                    state.turnKind = maneuverId;
-                    changed = true;
-                }
-            }
             if (distance >= 0 && distance != state.maneuverDistance) {
                 state.maneuverDistance = distance;
                 state.maneuverDistanceText = "";

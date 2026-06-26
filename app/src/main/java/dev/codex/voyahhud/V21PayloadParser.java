@@ -61,7 +61,9 @@ final class V21PayloadParser {
                     state.direction = direction;
                     result.changed = true;
                 }
-                int turnKind = intAny(turn, state.turnKind, "turnKind", "maneuver", "turnKindType");
+                int turnKind = hasAny(turn, "turnKind", "maneuver", "turnKindType")
+                        ? intAny(turn, -1, "turnKind", "maneuver", "turnKindType")
+                        : -1;
                 if (turnKind != state.turnKind) {
                     state.turnKind = turnKind;
                     result.changed = true;
@@ -93,6 +95,9 @@ final class V21PayloadParser {
                 result.freshGuide = true;
                 result.authoritativeGuide = appGuide;
                 result.navigationSignal = NavigationSignal.ACTIVE;
+            } else if (state.turnKind != -1) {
+                state.turnKind = -1;
+                result.changed = true;
             }
         }
 
@@ -273,6 +278,14 @@ final class V21PayloadParser {
     private int intAny(JSONObject object, int fallback, String... keys) {
         for (String key : keys) if (object.has(key)) return integer(object, key, fallback);
         return fallback;
+    }
+
+    private boolean hasAny(JSONObject object, String... keys) {
+        if (object == null) return false;
+        for (String key : keys) {
+            if (object.has(key)) return true;
+        }
+        return false;
     }
 
     private double doubleAny(JSONObject object, double fallback, String... keys) {

@@ -8,7 +8,7 @@ final class HudState {
     String currentRoad = "";
     String nextRoad = "";
     String direction = "";
-    int turnKind;
+    int turnKind = -1;
     String turnIconResource = "";
     int maneuverDistance = -1;
     String maneuverDistanceText = "";
@@ -30,7 +30,7 @@ final class HudState {
         currentRoad = "";
         nextRoad = "";
         direction = "";
-        turnKind = 0;
+        turnKind = -1;
         turnIconResource = "";
         maneuverDistance = -1;
         maneuverDistanceText = "";
