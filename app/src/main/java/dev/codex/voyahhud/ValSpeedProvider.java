@@ -2,8 +2,8 @@ package dev.codex.voyahhud;
 
 import android.content.Context;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Parcel;
-import android.os.SystemClock;
 import android.util.Log;
 
 import com.iauto.val.ValManager;
@@ -25,10 +25,10 @@ final class ValSpeedProvider {
     private static final String NOTIFY_SPEED_URI =
             "val://Vehicle/static/Driving/v1/s0/notifyDrvInfoSpeedInfo";
     private static final String LICENSE_ASSET = "voyah_h53direct.license";
-    private static final long POLL_MS = 500L;
+    private static final long POLL_MS = 250L;
 
     private final Context context;
-    private final Handler worker;
+    private final Handler callbackHandler;
     private final Callback callback;
     private final ValManager.ValListener valListener = new ValManager.ValListener() {
         @Override public void onServiceConnected() {
@@ -59,37 +59,43 @@ final class ValSpeedProvider {
     private boolean initResult;
     private boolean connected;
     private boolean listenerRegistered;
-    private int lastSpeed = -1;
+    private volatile int lastSpeed = -1;
+    private HandlerThread speedThread;
+    private Handler speedHandler;
 
     private final Runnable pollRunnable = new Runnable() {
         @Override public void run() {
             if (!started) return;
             pollSpeed();
-            if (started) worker.postDelayed(this, POLL_MS);
+            Handler handler = speedHandler;
+            if (started && handler != null) handler.postDelayed(this, POLL_MS);
         }
     };
 
-    ValSpeedProvider(Context context, Handler worker, Callback callback) {
+    ValSpeedProvider(Context context, Handler callbackHandler, Callback callback) {
         this.context = context.getApplicationContext();
-        this.worker = worker;
+        this.callbackHandler = callbackHandler;
         this.callback = callback;
     }
 
-    void start() {
+    synchronized void start() {
         if (started) return;
+        speedThread = new HandlerThread("voyah-val-speed");
+        speedThread.start();
+        speedHandler = new Handler(speedThread.getLooper());
         started = true;
-        worker.post(() -> {
+        speedHandler.post(() -> {
             initSdk();
             registerListener();
             bindService();
-            worker.removeCallbacks(pollRunnable);
-            worker.postDelayed(pollRunnable, 800L);
+            speedHandler.removeCallbacks(pollRunnable);
+            speedHandler.postDelayed(pollRunnable, 500L);
         });
     }
 
     void recover() {
         if (!started) return;
-        worker.post(() -> {
+        runOnSpeedThread(() -> {
             if (!connected) bindService();
             initSdk();
             registerListener();
@@ -97,17 +103,33 @@ final class ValSpeedProvider {
         });
     }
 
-    void stop() {
+    synchronized void stop() {
         started = false;
-        worker.removeCallbacks(pollRunnable);
-        if (listenerRegistered) {
+        Handler handler = speedHandler;
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+            handler.post(() -> {
+                if (listenerRegistered) {
+                    try {
+                        ValManager.getInstance().unRegisterListener(valListener);
+                    } catch (Throwable ignored) {
+                    } finally {
+                        listenerRegistered = false;
+                    }
+                }
+            });
+        } else if (listenerRegistered) {
             try {
                 ValManager.getInstance().unRegisterListener(valListener);
             } catch (Throwable ignored) {
-            } finally {
-                listenerRegistered = false;
             }
+            listenerRegistered = false;
         }
+        if (speedThread != null) {
+            speedThread.quitSafely();
+        }
+        speedHandler = null;
+        speedThread = null;
     }
 
     int latestSpeed() {
@@ -234,7 +256,7 @@ final class ValSpeedProvider {
         if (speed == lastSpeed) return;
         lastSpeed = speed;
         log("VAL speed " + source + "=" + speed);
-        callback.onSpeedChanged(speed);
+        callbackHandler.post(() -> callback.onSpeedChanged(speed));
     }
 
     private boolean isPlausibleSpeed(float speed) {
@@ -259,7 +281,12 @@ final class ValSpeedProvider {
     }
 
     private void runOnWorker(Runnable task) {
-        worker.post(task);
+        runOnSpeedThread(task);
+    }
+
+    private void runOnSpeedThread(Runnable task) {
+        Handler handler = speedHandler;
+        if (handler != null) handler.post(task);
     }
 
     private void log(String message) {
