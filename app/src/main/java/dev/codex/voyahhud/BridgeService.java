@@ -80,9 +80,9 @@ public class BridgeService extends Service {
     private static final long BAIDU_HUD_SDK_RETRY_MS = 30_000;
     private static final String NOTIFICATION_CHANNEL = "v21_h53_bridge";
     private static final int NOTIFICATION_ID = 5300;
-    private static final long MIN_RENDER_INTERVAL_MS = 250;
+    private static final long MIN_RENDER_INTERVAL_MS = 125;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.18";
+    private static final String BAIDU_HUD_APP_VERSION = "5.19";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -174,7 +174,7 @@ public class BridgeService extends Service {
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.18 created");
+        log("service 5.19 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 

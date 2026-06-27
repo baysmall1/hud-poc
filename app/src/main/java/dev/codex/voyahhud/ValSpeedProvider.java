@@ -25,7 +25,7 @@ final class ValSpeedProvider {
     private static final String NOTIFY_SPEED_URI =
             "val://Vehicle/static/Driving/v1/s0/notifyDrvInfoSpeedInfo";
     private static final String LICENSE_ASSET = "voyah_h53direct.license";
-    private static final long POLL_MS = 250L;
+    private static final long POLL_MS = 125L;
 
     private final Context context;
     private final Handler callbackHandler;
