@@ -19,6 +19,7 @@ Thumbs.db
 *.idsig
 *.keystore
 *.jks
+*.license
 
 # Java/Android intermediates
 *.class

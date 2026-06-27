@@ -82,7 +82,7 @@ public class BridgeService extends Service {
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.16";
+    private static final String BAIDU_HUD_APP_VERSION = "5.17";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -100,6 +100,7 @@ public class BridgeService extends Service {
     private HandlerThread workerThread;
     private Handler worker;
     private HudRenderer renderer;
+    private ValSpeedProvider valSpeedProvider;
     private ServiceConnection v21Connection;
     private ServiceConnection mapAidlConnection;
     private ServiceConnection openControlConnection;
@@ -160,13 +161,20 @@ public class BridgeService extends Service {
         workerThread.start();
         worker = new Handler(workerThread.getLooper());
         renderer = new HudRenderer(this);
+        valSpeedProvider = new ValSpeedProvider(this, worker, speed -> {
+            if (speed != state.speed) {
+                state.speed = speed;
+                if (state.navigating) scheduleRender();
+            }
+        });
+        valSpeedProvider.start();
         HudSettings.migrateFromV46(this);
         hudPreferences = HudSettings.preferences(this);
         hudPreferences.registerOnSharedPreferenceChangeListener(settingsListener);
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.16 created");
+        log("service 5.17 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -343,6 +351,7 @@ public class BridgeService extends Service {
     private void recoverConnections() {
         if (destroyed) return;
         startBaiduHudSdk();
+        if (valSpeedProvider != null) valSpeedProvider.recover();
         if (v21Binder != null && !v21Binder.isBinderAlive()) {
             v21Binder = null;
             listenersSubscribed = false;
@@ -504,6 +513,7 @@ public class BridgeService extends Service {
         lastGuideEventAt = System.currentTimeMillis();
         if (!state.navigating) log("Baidu HUD SDK navigation active");
         state.navigating = true;
+        syncLatestValSpeed();
         ensureHudOffscreenActive();
     }
 
@@ -1037,6 +1047,7 @@ public class BridgeService extends Service {
                 inactiveSignals = 0;
                 if (!state.navigating) log("V21 navigation active");
                 state.navigating = true;
+                syncLatestValSpeed();
                 ensureHudOffscreenActive();
                 long now = System.currentTimeMillis();
                 if (!listenersSubscribed && now - lastSubscriptionAt > 5_000) {
@@ -1066,6 +1077,14 @@ public class BridgeService extends Service {
         lastRenderKey = "";
         hideHud();
         releaseHudOffscreenSurface(true);
+    }
+
+    private void syncLatestValSpeed() {
+        if (valSpeedProvider == null) return;
+        int latestSpeed = valSpeedProvider.latestSpeed();
+        if (latestSpeed >= 0 && latestSpeed != state.speed) {
+            state.speed = latestSpeed;
+        }
     }
 
     private void scheduleRender() {
@@ -1287,6 +1306,7 @@ public class BridgeService extends Service {
     public void onDestroy() {
         destroyed = true;
         mainHandler.removeCallbacksAndMessages(null);
+        if (valSpeedProvider != null) valSpeedProvider.stop();
         if (worker != null) {
             worker.removeCallbacksAndMessages(null);
             if (v21Binder != null) try { removeEventListener(); } catch (Throwable ignored) { }
