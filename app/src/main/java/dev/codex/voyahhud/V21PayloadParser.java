@@ -315,7 +315,7 @@ final class V21PayloadParser {
     private boolean updateMapMatchSpeed(JSONObject object, HudState state) {
         double metersPerSecond = doubleAny(object, -1d, "speed");
         if (metersPerSecond >= 0d) {
-            int normalized = Math.max(0, Math.min(299, (int) Math.round(metersPerSecond * 3.6d)));
+            int normalized = Math.max(0, Math.min(299, (int) Math.round(metersPerSecond * 3.6d) + 1));
             if (normalized != state.speed) {
                 state.speed = normalized;
                 return true;
