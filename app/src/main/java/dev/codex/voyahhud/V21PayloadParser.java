@@ -50,7 +50,8 @@ final class V21PayloadParser {
         }
 
         boolean appGuide = function.contains("app_guide");
-        if (appGuide || (allowFallbackGuide && (function.contains("turn") || function.contains("tbt")))) {
+        boolean turnInfoGuide = function.contains("on_turn_info");
+        if (appGuide || turnInfoGuide || (allowFallbackGuide && (function.contains("turn") || function.contains("tbt")))) {
             JSONObject turn = findObjectWithAny(root, "turnKind", "turnKindType");
             if (turn != null) {
                 result.changed |= setString(turn, "roadName", state.currentRoad, v -> state.currentRoad = v);
@@ -61,12 +62,14 @@ final class V21PayloadParser {
                     state.direction = direction;
                     result.changed = true;
                 }
-                int turnKind = hasAny(turn, "turnKind", "maneuver", "turnKindType")
-                        ? intAny(turn, -1, "turnKind", "maneuver", "turnKindType")
-                        : -1;
-                if (turnKind != state.turnKind) {
-                    state.turnKind = turnKind;
-                    result.changed = true;
+                if (turnInfoGuide) {
+                    int turnKind = hasAny(turn, "turnKind", "maneuver", "turnKindType")
+                            ? intAny(turn, -1, "turnKind", "maneuver", "turnKindType")
+                            : -1;
+                    if (turnKind != state.turnKind) {
+                        state.turnKind = turnKind;
+                        result.changed = true;
+                    }
                 }
                 int distance = integer(turn, "remainDistance", -1);
                 if (distance < 0) {
@@ -95,7 +98,7 @@ final class V21PayloadParser {
                 result.freshGuide = true;
                 result.authoritativeGuide = appGuide;
                 result.navigationSignal = NavigationSignal.ACTIVE;
-            } else if (state.turnKind != -1) {
+            } else if (turnInfoGuide && state.turnKind != -1) {
                 state.turnKind = -1;
                 result.changed = true;
             }
