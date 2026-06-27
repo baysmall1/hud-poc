@@ -10,7 +10,9 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 final class HudRenderer {
     static final int WIDTH = 760;
@@ -122,6 +124,7 @@ final class HudRenderer {
     private final Context context;
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Map<String, Bitmap> assetCache = new HashMap<>();
 
     HudRenderer(Context context) {
         this.context = context;
@@ -282,7 +285,6 @@ final class HudRenderer {
                 canvas.drawBitmap(bitmap, null,
                         new RectF(left, 65, left + widths[i], 65 + height), bitmapPaint);
                 left += widths[i] + gap;
-                bitmap.recycle();
             }
         }
     }
@@ -325,22 +327,32 @@ final class HudRenderer {
                 canvas.drawBitmap(bitmap, null,
                         new RectF(left, 35, left + widths[i], 35 + height), bitmapPaint);
                 left += widths[i] + gap;
-                bitmap.recycle();
             }
         }
     }
 
     private Bitmap loadAsset(String name) {
         if (name == null || name.isEmpty()) return null;
+        Bitmap cached = assetCache.get(name);
+        if (cached != null && !cached.isRecycled()) return cached;
         int id = context.getResources().getIdentifier(name, "drawable", context.getPackageName());
-        return id == 0 ? null : BitmapFactory.decodeResource(context.getResources(), id);
+        if (id == 0) return null;
+        Bitmap decoded = BitmapFactory.decodeResource(context.getResources(), id);
+        if (decoded != null) assetCache.put(name, decoded);
+        return decoded;
     }
 
     private void drawAsset(Canvas canvas, String name, RectF target) {
         Bitmap bitmap = loadAsset(name);
         if (bitmap == null) return;
         canvas.drawBitmap(bitmap, null, fitCenter(target, bitmap.getWidth(), bitmap.getHeight()), bitmapPaint);
-        bitmap.recycle();
+    }
+
+    void clearAssetCache() {
+        for (Bitmap bitmap : assetCache.values()) {
+            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+        }
+        assetCache.clear();
     }
 
     private RectF fitCenter(RectF bounds, int sourceWidth, int sourceHeight) {

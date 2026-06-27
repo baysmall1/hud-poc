@@ -54,13 +54,15 @@ final class V21PayloadParser {
         if (appGuide || turnInfoGuide || (allowFallbackGuide && (function.contains("turn") || function.contains("tbt")))) {
             JSONObject turn = findObjectWithAny(root, "turnKind", "turnKindType");
             if (turn != null) {
-                result.changed |= setString(turn, "roadName", state.currentRoad, v -> state.currentRoad = v);
-                result.changed |= setString(turn, "nextRoadName", state.nextRoad, v -> state.nextRoad = v);
-                String direction = string(turn, "directionContent", string(turn, "directionName", ""));
-                if (direction.isEmpty()) direction = string(turn, "gotoContent", "");
-                if (!direction.isEmpty() && !direction.equals(state.direction)) {
-                    state.direction = direction;
-                    result.changed = true;
+                if (!turnInfoGuide) {
+                    result.changed |= setString(turn, "roadName", state.currentRoad, v -> state.currentRoad = v);
+                    result.changed |= setString(turn, "nextRoadName", state.nextRoad, v -> state.nextRoad = v);
+                    String direction = string(turn, "directionContent", string(turn, "directionName", ""));
+                    if (direction.isEmpty()) direction = string(turn, "gotoContent", "");
+                    if (!direction.isEmpty() && !direction.equals(state.direction)) {
+                        state.direction = direction;
+                        result.changed = true;
+                    }
                 }
                 if (turnInfoGuide) {
                     int turnKind = hasAny(turn, "turnKind", "maneuver", "turnKindType")

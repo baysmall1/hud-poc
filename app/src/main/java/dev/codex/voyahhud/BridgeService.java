@@ -35,9 +35,10 @@ import com.baidu.navisdk.hudsdk.client.HUDSDkEventCallback;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 
 import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public class BridgeService extends Service {
@@ -80,7 +81,7 @@ public class BridgeService extends Service {
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.12";
+    private static final String BAIDU_HUD_APP_VERSION = "5.14";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -165,7 +166,7 @@ public class BridgeService extends Service {
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.12 created");
+        log("service 5.14 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -188,6 +189,7 @@ public class BridgeService extends Service {
                 if (json == null || worker == null) return;
                 worker.post(() -> {
                     try {
+                        logPayloadChunks("V21 broadcast traffic light raw", json);
                         if (parser.applyTrafficLight(json, state)) {
                             log("V21 traffic light accepted");
                             if (state.navigating) scheduleRender();
@@ -299,8 +301,12 @@ public class BridgeService extends Service {
             manager.createNotificationChannel(channel);
         }
         Intent open = new Intent(this, MainActivity.class);
+        int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, open,
-                PendingIntent.FLAG_UPDATE_CURRENT);
+                pendingFlags);
         Notification.Builder builder = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
                 ? new Notification.Builder(this, NOTIFICATION_CHANNEL)
                 : new Notification.Builder(this);
@@ -1238,8 +1244,8 @@ public class BridgeService extends Service {
                 worker.post(() -> {
                     String decoded = decryptIfPossible(payload);
                     String lower = decoded == null ? "" : decoded.toLowerCase(java.util.Locale.US);
-                    if (lower.contains("traffic_light")) {
-                        log("V21 OpenControl traffic light event scene=" + scene);
+                    if (isTrafficLightCandidate(lower) || scene == OPEN_CONTROL_SCENE_NAVI) {
+                        logPayloadChunks("V21 OpenControl raw scene=" + scene, decoded);
                     }
                     if (lower.contains("\"error\"")) {
                         log("V21 OpenControl event error: " + summarizePayload(decoded));
@@ -1253,20 +1259,20 @@ public class BridgeService extends Service {
     }
 
     private String encrypt(String key, String plain) throws Exception {
-        SecretKeySpec secret = new SecretKeySpec(Base64.decode(key.getBytes("UTF-8"), Base64.DEFAULT), "AES");
+        SecretKeySpec secret = new SecretKeySpec(Base64.decode(key.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT), "AES");
         Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
-        cipher.init(Cipher.ENCRYPT_MODE, secret, new IvParameterSpec(AES_IV.getBytes("UTF-8")));
-        return new String(Base64.encode(cipher.doFinal(plain.getBytes("UTF-8")), Base64.DEFAULT), "UTF-8");
+        cipher.init(Cipher.ENCRYPT_MODE, secret, new GCMParameterSpec(128, AES_IV.getBytes(StandardCharsets.UTF_8)));
+        return new String(Base64.encode(cipher.doFinal(plain.getBytes(StandardCharsets.UTF_8)), Base64.DEFAULT), StandardCharsets.UTF_8);
     }
 
     private String decryptIfPossible(String value) {
         if (cryptKey == null || value == null || value.isEmpty()) return value;
         try {
-            SecretKeySpec secret = new SecretKeySpec(Base64.decode(cryptKey.getBytes("UTF-8"), Base64.DEFAULT), "AES");
+            SecretKeySpec secret = new SecretKeySpec(Base64.decode(cryptKey.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT), "AES");
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(AES_IV.getBytes("UTF-8")));
-            byte[] decoded = Base64.decode(value.getBytes("UTF-8"), Base64.DEFAULT);
-            return new String(cipher.doFinal(decoded), "UTF-8");
+            cipher.init(Cipher.DECRYPT_MODE, secret, new GCMParameterSpec(128, AES_IV.getBytes(StandardCharsets.UTF_8)));
+            byte[] decoded = Base64.decode(value.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
+            return new String(cipher.doFinal(decoded), StandardCharsets.UTF_8);
         } catch (Throwable ignored) {
             return value;
         }
@@ -1284,6 +1290,7 @@ public class BridgeService extends Service {
         if (baiduBroadcastReceiver != null) try { unregisterReceiver(baiduBroadcastReceiver); } catch (Throwable ignored) { }
         if (resumeReceiver != null) try { unregisterReceiver(resumeReceiver); } catch (Throwable ignored) { }
         if (hudPreferences != null) hudPreferences.unregisterOnSharedPreferenceChangeListener(settingsListener);
+        if (renderer != null) renderer.clearAssetCache();
         if (baiduHudSdkInitialized) {
             try { BNRemoteVistor.getInstance().unInit(); } catch (Throwable ignored) { }
         }
@@ -1297,6 +1304,34 @@ public class BridgeService extends Service {
     }
 
     private void log(String message) { Log.i(TAG, message); }
+
+    private boolean isTrafficLightCandidate(String normalizedPayload) {
+        return normalizedPayload.contains("traffic_light")
+                || normalizedPayload.contains("trafficlight")
+                || normalizedPayload.contains("traffic_light_info")
+                || normalizedPayload.contains("lamp_status")
+                || normalizedPayload.contains("count_down")
+                || normalizedPayload.contains("countdown")
+                || normalizedPayload.contains("lighttype")
+                || normalizedPayload.contains("remainsec")
+                || normalizedPayload.contains("mtrafficlights")
+                || normalizedPayload.contains("mperiodlights");
+    }
+
+    private void logPayloadChunks(String prefix, String payload) {
+        if (payload == null) {
+            log(prefix + ": null");
+            return;
+        }
+        String compact = payload.replace('\n', ' ').replace('\r', ' ').trim();
+        int chunkSize = 3000;
+        int count = Math.max(1, (compact.length() + chunkSize - 1) / chunkSize);
+        for (int i = 0; i < count; i++) {
+            int start = i * chunkSize;
+            int end = Math.min(compact.length(), start + chunkSize);
+            log(prefix + " [" + (i + 1) + "/" + count + "]: " + compact.substring(start, end));
+        }
+    }
 
     private String summarizePayload(String payload) {
         if (payload == null) return "null";
