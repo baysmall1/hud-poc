@@ -125,6 +125,7 @@ final class HudRenderer {
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Map<String, Bitmap> assetCache = new HashMap<>();
+    private final Object assetLock = new Object();
 
     HudRenderer(Context context) {
         this.context = context;
@@ -263,28 +264,30 @@ final class HudRenderer {
 
     private void drawSpeed(Canvas canvas, int speed) {
         if (speed < 0) return;
-        int value = Math.max(0, Math.min(speed < 0 ? 0 : speed, 299));
-        String digits = String.valueOf(value);
-        Bitmap[] bitmaps = new Bitmap[digits.length()];
-        float[] widths = new float[digits.length()];
-        float height = 70f;
-        // Source digit PNGs already contain transparent side bearings.
-        float gap = 0f;
-        float totalWidth = gap * Math.max(0, digits.length() - 1);
-        for (int i = 0; i < digits.length(); i++) {
-            bitmaps[i] = loadAsset("speed_" + digits.charAt(i));
-            if (bitmaps[i] != null) {
-                widths[i] = height * bitmaps[i].getWidth() / bitmaps[i].getHeight();
-                totalWidth += widths[i];
+        synchronized (assetLock) {
+            int value = Math.max(0, Math.min(speed, 299));
+            String digits = String.valueOf(value);
+            Bitmap[] bitmaps = new Bitmap[digits.length()];
+            float[] widths = new float[digits.length()];
+            float height = 70f;
+            // Source digit PNGs already contain transparent side bearings.
+            float gap = 0f;
+            float totalWidth = gap * Math.max(0, digits.length() - 1);
+            for (int i = 0; i < digits.length(); i++) {
+                bitmaps[i] = loadAssetLocked("speed_" + digits.charAt(i));
+                if (bitmaps[i] != null) {
+                    widths[i] = height * bitmaps[i].getWidth() / bitmaps[i].getHeight();
+                    totalWidth += widths[i];
+                }
             }
-        }
-        float left = 380 - totalWidth / 2f;
-        for (int i = 0; i < bitmaps.length; i++) {
-            Bitmap bitmap = bitmaps[i];
-            if (bitmap != null) {
-                canvas.drawBitmap(bitmap, null,
-                        new RectF(left, 65, left + widths[i], 65 + height), bitmapPaint);
-                left += widths[i] + gap;
+            float left = 380 - totalWidth / 2f;
+            for (int i = 0; i < bitmaps.length; i++) {
+                Bitmap bitmap = bitmaps[i];
+                if (bitmap != null) {
+                    canvas.drawBitmap(bitmap, null,
+                            new RectF(left, 65, left + widths[i], 65 + height), bitmapPaint);
+                    left += widths[i] + gap;
+                }
             }
         }
     }
@@ -307,31 +310,33 @@ final class HudRenderer {
     private void drawSpeedLimit(Canvas canvas, int limit) {
         if (limit <= 0) return;
         drawAsset(canvas, "speed_limit_bg", new RectF(670, 20, 730, 80));
-        String digits = String.valueOf(Math.min(limit, 199));
-        Bitmap[] bitmaps = new Bitmap[digits.length()];
-        float[] widths = new float[digits.length()];
-        float height = 30f;
-        float gap = 0f;
-        float totalWidth = gap * Math.max(0, digits.length() - 1);
-        for (int i = 0; i < digits.length(); i++) {
-            bitmaps[i] = loadAsset("speed_limit_" + digits.charAt(i));
-            if (bitmaps[i] != null) {
-                widths[i] = height * bitmaps[i].getWidth() / bitmaps[i].getHeight();
-                totalWidth += widths[i];
+        synchronized (assetLock) {
+            String digits = String.valueOf(Math.min(limit, 199));
+            Bitmap[] bitmaps = new Bitmap[digits.length()];
+            float[] widths = new float[digits.length()];
+            float height = 30f;
+            float gap = 0f;
+            float totalWidth = gap * Math.max(0, digits.length() - 1);
+            for (int i = 0; i < digits.length(); i++) {
+                bitmaps[i] = loadAssetLocked("speed_limit_" + digits.charAt(i));
+                if (bitmaps[i] != null) {
+                    widths[i] = height * bitmaps[i].getWidth() / bitmaps[i].getHeight();
+                    totalWidth += widths[i];
+                }
             }
-        }
-        float left = 700 - totalWidth / 2f;
-        for (int i = 0; i < bitmaps.length; i++) {
-            Bitmap bitmap = bitmaps[i];
-            if (bitmap != null) {
-                canvas.drawBitmap(bitmap, null,
-                        new RectF(left, 35, left + widths[i], 35 + height), bitmapPaint);
-                left += widths[i] + gap;
+            float left = 700 - totalWidth / 2f;
+            for (int i = 0; i < bitmaps.length; i++) {
+                Bitmap bitmap = bitmaps[i];
+                if (bitmap != null) {
+                    canvas.drawBitmap(bitmap, null,
+                            new RectF(left, 35, left + widths[i], 35 + height), bitmapPaint);
+                    left += widths[i] + gap;
+                }
             }
         }
     }
 
-    private Bitmap loadAsset(String name) {
+    private Bitmap loadAssetLocked(String name) {
         if (name == null || name.isEmpty()) return null;
         Bitmap cached = assetCache.get(name);
         if (cached != null && !cached.isRecycled()) return cached;
@@ -343,16 +348,20 @@ final class HudRenderer {
     }
 
     private void drawAsset(Canvas canvas, String name, RectF target) {
-        Bitmap bitmap = loadAsset(name);
-        if (bitmap == null) return;
-        canvas.drawBitmap(bitmap, null, fitCenter(target, bitmap.getWidth(), bitmap.getHeight()), bitmapPaint);
+        synchronized (assetLock) {
+            Bitmap bitmap = loadAssetLocked(name);
+            if (bitmap == null) return;
+            canvas.drawBitmap(bitmap, null, fitCenter(target, bitmap.getWidth(), bitmap.getHeight()), bitmapPaint);
+        }
     }
 
     void clearAssetCache() {
-        for (Bitmap bitmap : assetCache.values()) {
-            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+        synchronized (assetLock) {
+            for (Bitmap bitmap : assetCache.values()) {
+                if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+            }
+            assetCache.clear();
         }
-        assetCache.clear();
     }
 
     private RectF fitCenter(RectF bounds, int sourceWidth, int sourceHeight) {

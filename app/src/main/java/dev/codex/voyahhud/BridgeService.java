@@ -77,11 +77,12 @@ public class BridgeService extends Service {
     private static final long EVENT_FRESH_MS = 2_000;
     private static final long NAVIGATION_POLL_MS = 500;
     private static final long OPEN_CONTROL_RETRY_MS = 30_000;
+    private static final long BAIDU_HUD_SDK_RETRY_MS = 30_000;
     private static final String NOTIFICATION_CHANNEL = "v21_h53_bridge";
     private static final int NOTIFICATION_ID = 5300;
     private static final long MIN_RENDER_INTERVAL_MS = 250;
     private static final String BAIDU_HUD_APP_NAME = "V21-H53-HUD-Bridge";
-    private static final String BAIDU_HUD_APP_VERSION = "5.14";
+    private static final String BAIDU_HUD_APP_VERSION = "5.15";
     private static final int EXPAND_MAP_STATE_HIDE = 2;
     private static final String BAIDU_BROADCAST_ACTION = "BAIDUMAP_STANDARD_BROADCAST_SEND";
     private static final int GUIDANCE_INFO_EVENT = 10001;
@@ -136,7 +137,6 @@ public class BridgeService extends Service {
     private boolean baiduHudSdkOpening;
     private boolean baiduHudSdkConnected;
     private long lastOpenControlBindAttemptAt;
-    private boolean openControlUnavailable;
     private String lastRenderKey = "";
     private boolean tbtLogged;
     private SharedPreferences hudPreferences;
@@ -166,7 +166,7 @@ public class BridgeService extends Service {
         registerBaiduBroadcastReceiver();
         registerResumeReceiver();
         startBaiduHudSdk();
-        log("service 5.14 created");
+        log("service 5.15 created");
         mainHandler.postDelayed(this::startConnections, 1_000);
     }
 
@@ -356,6 +356,7 @@ public class BridgeService extends Service {
         if (openControlServiceBinder != null && !openControlServiceBinder.isBinderAlive()) {
             openControlServiceBinder = null;
             openControlFactoryBinder = null;
+            lastOpenControlBindAttemptAt = 0;
         }
         if (h53CommBinder != null && !h53CommBinder.isBinderAlive()) {
             h53CommBinder = null;
@@ -475,6 +476,8 @@ public class BridgeService extends Service {
                             log("Baidu HUD SDK LBS auth result=" + result
                                     + " reason=" + summarizeText(reason));
                             if (result == 0) openBaiduHudSdk();
+                            else mainHandler.postDelayed(BridgeService.this::openBaiduHudSdk,
+                                    BAIDU_HUD_SDK_RETRY_MS);
                         }
                     });
             baiduHudSdkInitialized = true;
@@ -597,11 +600,13 @@ public class BridgeService extends Service {
         final int enlargeState = value.getEnlargeRoadState();
         final int remainDistance = value.getRemainDist();
         final String roadName = trimToEmpty(value.getRoadName());
-        final byte[] png = enlargeState == EXPAND_MAP_STATE_HIDE
-                ? null : composeEnlargePng(value.getBasicImage(), value.getArrowImage());
+        final Bitmap basicImage = value.getBasicImage();
+        final Bitmap arrowImage = value.getArrowImage();
         worker.post(() -> {
             markBaiduHudNavigationActive();
             boolean changed = false;
+            byte[] png = enlargeState == EXPAND_MAP_STATE_HIDE
+                    ? null : composeEnlargePng(basicImage, arrowImage);
             if (enlargeState == EXPAND_MAP_STATE_HIDE) {
                 if (state.enlargeImage != null) {
                     state.enlargeImage = null;
@@ -691,7 +696,7 @@ public class BridgeService extends Service {
     }
 
     private void bindOpenControl() {
-        if (openControlUnavailable || openControlBinding || openControlServiceBinder != null || destroyed) return;
+        if (openControlBinding || openControlServiceBinder != null || destroyed) return;
         long now = System.currentTimeMillis();
         if (now - lastOpenControlBindAttemptAt < OPEN_CONTROL_RETRY_MS) return;
         lastOpenControlBindAttemptAt = now;
@@ -713,19 +718,19 @@ public class BridgeService extends Service {
                 openControlFactoryBinder = null;
                 openControlServiceBinder = null;
                 openControlBinding = false;
-                mainHandler.postDelayed(BridgeService.this::bindOpenControl, 1_500);
+                mainHandler.postDelayed(BridgeService.this::bindOpenControl, OPEN_CONTROL_RETRY_MS);
             }
         };
         try {
             if (!bindService(intent, openControlConnection, Context.BIND_AUTO_CREATE)) {
                 openControlBinding = false;
-                openControlUnavailable = true;
                 log("V21 OpenControl bind returned false");
+                mainHandler.postDelayed(this::bindOpenControl, OPEN_CONTROL_RETRY_MS);
             }
         } catch (Throwable error) {
             openControlBinding = false;
-            openControlUnavailable = true;
             log("V21 OpenControl bind failed: " + summarize(error));
+            mainHandler.postDelayed(this::bindOpenControl, OPEN_CONTROL_RETRY_MS);
         }
     }
 
@@ -1086,7 +1091,7 @@ public class BridgeService extends Service {
     }
 
     private String writeHudImage(Bitmap bitmap) throws Exception {
-        imageSequence = (imageSequence + 1) % 4;
+        imageSequence = (imageSequence + 1) % 8;
         File pictures = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
         File directory = new File(pictures, "V21H53Bridge");
         if ((!directory.exists() && !directory.mkdirs()) || !directory.isDirectory()) {

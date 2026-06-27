@@ -38,6 +38,7 @@ final class HudState {
         immediateGuideText = "";
         totalDistance = -1;
         totalTimeSeconds = -1;
+        speed = -1;
         speedLimit = -1;
         enlargeImage = null;
         enlargeUpdatedAt = 0;
